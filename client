@@ -1,0 +1,240 @@
+import socket
+import pygame
+import random
+import threading
+import time
+import math
+
+IP = "127.0.0.1"
+PORT = 5571
+WINDOW_WIDTH = 600
+WINDOW_HEIGHT = 600
+RED = (255, 0, 0)
+PURPLE = (153, 153, 255)
+VELOCITY = 10
+
+
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self, color, center):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.Surface((50, 50))
+        self.image.fill(color)
+        self.rect = self.image.get_rect()
+        self.rect.center = center
+
+    def move(self, sprites, myPos, locatios):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_RIGHT]:
+            myPos, locatios = self.right(sprites, myPos, locatios)
+        if keys[pygame.K_LEFT]:
+            myPos, locatios = self.left(sprites, myPos, locatios)
+        if keys[pygame.K_UP]:
+            myPos, locatios = self.up(sprites, myPos, locatios)
+        if keys[pygame.K_DOWN]:
+            myPos, locatios = self.down(sprites, myPos, locatios)
+        return myPos, locatios
+
+    def right(self, sprites, myPos, locs):
+        for s in sprites:
+            if s is not self:
+                loc = s.rect.center
+                sprites.add(Player((2, 255, 255), s.rect.center))
+                if s.rect.center[0] - VELOCITY >= 50:
+                    sprites.add(Player(RED, (s.rect.center[0] - VELOCITY, s.rect.center[1])))
+                for i in locs:
+                    if locs[i] == loc:
+                        locs[i] = (s.rect.center[0] - VELOCITY, s.rect.center[1])
+
+        if (myPos[0] + VELOCITY) <= 12050:
+            myPos = (myPos[0] + VELOCITY, myPos[1])
+        return myPos, locs
+
+    def left(self, sprites, myPos, locs):
+        for s in sprites:
+            if s is not self:
+                print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4s.rect.center: ",s.rect.center)
+                loc = s.rect.center
+                sprites.add(Player((2, 255, 255), s.rect.center))
+                if s.rect.center[0] + VELOCITY <=12050:
+                    sprites.add(Player(RED, (s.rect.center[0] + VELOCITY, s.rect.center[1])))
+                for i in locs:
+                    if locs[i] == loc:
+                        locs[i] = (s.rect.center[0] + VELOCITY, s.rect.center[1])
+        if (myPos[0] - VELOCITY) >= 50:
+            myPos = (myPos[0] - VELOCITY, myPos[1])
+        return myPos, locs
+
+    def up(self, sprites, myPos, locs):
+        for s in sprites:
+            if s is not self:
+
+                print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4s.rect.center: ",s.rect.center)
+                loc = s.rect.center
+                sprites.add(Player((2, 255, 255), s.rect.center))
+                if s.rect.center[1]+VELOCITY <=12050:
+                    sprites.add(Player(RED, (s.rect.center[0], s.rect.center[1]+VELOCITY)))
+
+                for i in locs:
+                    if locs[i] == loc:
+                        locs[i] = (s.rect.center[0], s.rect.center[1]+VELOCITY)
+        if (myPos[1] - VELOCITY) >= 50:
+            myPos = (myPos[0], myPos[1] - VELOCITY)
+        return myPos, locs
+
+    def down(self, sprites, myPos, locs):
+        for s in sprites:
+            if s is not self:
+                print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$4s.rect.center: ", s.rect.center)
+                loc = s.rect.center
+                sprites.add(Player((2, 255, 255), s.rect.center))
+                if s.rect.center[1] - VELOCITY >=50:
+                    sprites.add(Player(RED, (s.rect.center[0], s.rect.center[1] - VELOCITY)))
+                for i in locs:
+                    if locs[i] == loc:
+                        locs[i] = (s.rect.center[0], s.rect.center[1] - VELOCITY)
+        if (myPos[1] + VELOCITY) <= 12050:
+            myPos = (myPos[0], myPos[1] + VELOCITY)
+        return myPos, locs
+
+#takes a string and returns addr, (x,y)
+def toTuple(st: str):
+    start = st.find("(")
+    end = st.find(",")
+    #print(st[start+1:end])
+    e = st.find(",", end+1)
+    en = st.find(")")
+    #print(st[end + 1:e], ", ", len(st[start+1:end]))
+    return int(st[start+1:end]), (int(st[end+3:e]), int(st[e+1:en]))
+
+def find_my_port(client):
+    sock = str(client)
+    i = sock.find('laddr')
+    end = sock.find(')')
+    port = sock[i+18:end]
+    return int(port)
+
+def create_pos(st:str):
+    start = st.find("(")
+    end = st.find(",")
+    en = st.find(")")
+    return (int(st[start+1:end]), int(st[end+1:en]))
+
+def addr_to_tuple(st: str):
+    start = st.find("(")
+    end = st.find(",")
+    en = st.find(")")
+    return ('127.0.0.1', int(st[end + 1:en]))
+
+def main(screen, client):
+    run = True
+    clock = pygame.time.Clock()
+    my_port = find_my_port(client)
+    print("port: ", my_port)
+
+    sprites = pygame.sprite.Group()
+    clock.tick(60)  #for rate frames
+
+    p = Player(PURPLE, (WINDOW_WIDTH/2, WINDOW_HEIGHT/2))
+    #recv start position from mainserver:
+    (position, server) = client.recvfrom(1024)
+    try:
+         myPosition = create_pos(position.decode())
+         print("my position: ", myPosition)
+    except:
+        print("something is wrong - didnt get position")
+
+    (subServer, server) = client.recvfrom(1024) #gets subserver addr and port
+    subAddr = addr_to_tuple(subServer.decode())
+    print(subAddr)
+    client.sendto("aqui Hello player".encode(), subAddr) #sends to subserver
+
+    locations = {}
+    my_locs = {}
+
+    while run:
+
+        print("in")
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                client.sendto("out".encode(), subAddr)
+                run = False
+
+
+        (data3, server) = client.recvfrom(1024)
+        info = data3.decode()
+        print("info: ", info)
+        if "out" in info:
+            print("outtttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt")
+            por = addr_to_tuple(info)[1]
+            if por in my_locs:
+                sprites.add(Player((2, 255, 255), my_locs[por]))
+                sprites.remove(Player(RED, my_locs[por]))
+                del locations[por]
+                del my_locs[por]
+
+        elif "change server" in info:
+            subAddr = addr_to_tuple(info)
+            client.sendto("bla Hello player".encode(), subAddr) #sends to new subserver
+            time.sleep(0.1)
+
+        elif "(" in info:
+
+            print("-----------------------------------------------------------got from server: ", position.decode())
+            ad, pos = toTuple(info)
+            if ad in locations.keys():
+                sprites.remove(Player(RED, my_locs[ad]))
+                sprites.add(Player((2,255,255), my_locs[ad])) #the screen color
+
+            x,y = pos
+
+            if x > 12050:   #makes an illusion of endless map
+                x = x-12000
+
+            if y > 12050:
+                y = y-12000
+
+
+            print("another player location: (", x, ", ", y, ")" )
+
+            if ad in locations:
+                if x > locations[ad][0]:
+                    my_locs[ad] = (my_locs[ad][0] + VELOCITY, my_locs[ad][1])
+                if x < locations[ad][0]:
+                    my_locs[ad] = (my_locs[ad][0] - VELOCITY, my_locs[ad][1])
+                if y > locations[ad][1]:
+                    my_locs[ad] = (my_locs[ad][0], my_locs[ad][1] + VELOCITY)
+                if y < locations[ad][1]:
+                    my_locs[ad] = (my_locs[ad][0], my_locs[ad][1] - VELOCITY)
+                locations[ad] = (x, y)
+
+            else:
+                locations[ad] = (x, y)
+                my_locs[ad] = (x, y)
+
+        for i in locations.keys():
+            sprites.add(Player(RED, my_locs[i]))
+
+        myPosition, my_locs = p.move(sprites, myPosition, my_locs)
+        print("locations: ", my_locs)
+        print("my position: ", str(myPosition))
+        client.sendto(str(myPosition).encode(), subAddr)
+
+        sprites.add(p)
+        sprites.draw(screen)
+        pygame.display.flip()
+        sprites.empty()
+
+
+if __name__ == '__main__':
+    my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    my_socket.sendto("blabla Hello player".encode(), (IP, PORT)) #sends to mainserver
+    print("my;/", my_socket)
+    pygame.init()
+    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+    my_port = find_my_port(my_socket)
+    pygame.display.set_caption(f"Client {my_port}") 
+    screen.fill((2, 255, 255))
+    pygame.display.flip()
+
+    main(screen, my_socket)
