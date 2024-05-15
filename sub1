@@ -8,7 +8,7 @@ import math
 
 IP = "127.0.0.1"
 PORT = 5571 #port of main server
-myPort = 5567
+#myPort = 5567
 ADDR = (IP, PORT)
 size = 1024
 outgoingQ = queue.Queue()
@@ -29,7 +29,6 @@ class threadServer(threading.Thread):
         self.addresses = queue.Queue()
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.server_socket.bind((self.host, self.port))
-        self.startPlayers = {}
 
         s = sendToClient(self.q, self.server_socket, self.players_locations.keys(), self.addresses)
         s.start()
@@ -55,18 +54,23 @@ class threadServer(threading.Thread):
                 print(f"new rate x: {rateX}, new rate y: {rateY}")
             elif "out" in d:
                 del self.players_locations[addr]
-                for i in self.players_locations.keys():
+                for i in self.players_locations.keys(): #notificate other players.
                     self.q.put((("out"+str(addr)), i))
+
 
             elif "Hello" in data.decode() and addr not in self.players:
                 print("********************new player***********************************")
-                #adding the new player
+                # adding the new player
                 self.counter += 1
                 self.players.append(addr)
 
-
                 c = listenToClient(addr, self, self.q)
                 c.start()
+
+                # Broadcast the initial position of the new player to all existing clients
+                for client in self.players_locations.keys():
+                    if client != addr:
+                        self.q.put(((str(addr) + ", " + str(self.players_locations[addr])), client))
 
             else:
                 try:
@@ -80,11 +84,11 @@ class threadServer(threading.Thread):
                     print("position is not mine")
                     self.my_client.sendto(("change server " + str(addr) + ", " + str(position)).encode(), self.mainServer)
                     del self.players_locations[addr]
-                    for i in self.players_locations.keys(): #???
+                    for i in self.players_locations.keys(): #notificate others
                         self.q.put((("out" + str(addr)), i))
 
-            for i in self.players_locations.keys(): #???
-                self.addresses.put(i)
+            for i in self.players_locations.keys(): #allows the main threadServer to handle data and update players
+                self.addresses.put(i)       #locations without being responsible for sending messages to all the clients.
             c = calc(self.players_locations, self.q)
             c.start()
 
@@ -92,9 +96,7 @@ class threadServer(threading.Thread):
 def toTuple(st: str):
     start = st.find("(")
     end = st.find(",")
-    #print(st[start+1:end])
     e = st.find(")")
-    #print(st[end + 1:e], ", ", len(st[start+1:end]))
     return (int(st[start+1:end]), int(st[end + 1:e]))
 
 #checks if there are any masseges to send client and if so it sends them
@@ -112,22 +114,20 @@ class sendToClient(threading.Thread):
         while True:
             if not self.q.empty():
                 message = self.q.get()
-                print("the important massage: ", message)
                 msg = message[0]
                 addr = message[1]
                 print("sending: ", msg, "to: ", addr)
                 self.server.sendto((str(msg)).encode(), addr)
                 print("q after sending: ", list(self.q.queue))
-                time.sleep(0.1) ##  #
+                time.sleep(0.1)
 
-class listenToClient(threading.Thread): #???
+class listenToClient(threading.Thread):
     def __init__(self, addr, Tserver, q):
         threading.Thread.__init__(self)
         self.addr = addr
         self.server = Tserver.server_socket #socket between subserver and client
         self.running = True
         self.players = Tserver.players_locations
-        #self.Tserver = Tserver
         self.q = q
 
     def run(self):
