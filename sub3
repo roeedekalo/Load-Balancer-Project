@@ -8,7 +8,7 @@ import math
 
 IP = "127.0.0.1"
 PORT = 5571 #port of main server
-myPort = 5567
+#myPort = 5567
 ADDR = (IP, PORT)
 size = 1024
 outgoingQ = queue.Queue()
@@ -29,7 +29,6 @@ class threadServer(threading.Thread):
         self.addresses = queue.Queue()
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.server_socket.bind((self.host, self.port))
-        self.startPlayers = {}
 
         s = sendToClient(self.q, self.server_socket, self.players_locations.keys(), self.addresses)
         s.start()
@@ -59,14 +58,19 @@ class threadServer(threading.Thread):
                 for i in self.players_locations.keys():
                     self.q.put((("out"+str(addr)), i))
 
-            elif "Hello" in d and addr not in self.players:
+
+            elif "Hello" in data.decode() and addr not in self.players:
                 print("********************new player***********************************")
-                #adding the new player
+                # adding the new player
                 self.counter += 1
                 self.players.append(addr)
-
                 c = listenToClient(addr, self, self.q)
                 c.start()
+
+                # Broadcast the initial position of the new player to all existing clients
+                for client in self.players_locations.keys():
+                    if client != addr:
+                        self.q.put(((str(addr) + ", " + str(self.players_locations[addr])), client))
             else:
                 try:
                     position = toTuple(d)
